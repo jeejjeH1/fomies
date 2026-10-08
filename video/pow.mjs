@@ -1,0 +1,14 @@
+import { createRequire } from 'module'; import http from 'http'; import fs from 'fs'; import path from 'path'; import { fileURLToPath } from 'url';
+const require = createRequire(import.meta.url);
+const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const ROOT = path.dirname(fileURLToPath(import.meta.url));
+const T = { '.html': 'text/html', '.js': 'text/javascript', '.jpg': 'image/jpeg', '.png': 'image/png', '.ttf': 'font/ttf' };
+const srv = http.createServer((q, r) => { const p = path.join(ROOT, decodeURIComponent(q.url.split('?')[0])); if (!fs.existsSync(p) || fs.statSync(p).isDirectory()) { r.writeHead(404); return r.end(); } r.writeHead(200, { 'Content-Type': T[path.extname(p)] || 'application/octet-stream' }); fs.createReadStream(p).pipe(r); });
+await new Promise(r => srv.listen(0, '127.0.0.1', r));
+const b = await chromium.launch(); const pg = await b.newPage({ viewport: { width: 1920, height: 1080 } });
+pg.on('pageerror', e => console.error(e.message));
+await pg.goto(`http://127.0.0.1:${srv.address().port}/pow.html?render=1`);
+await pg.waitForFunction(() => window.powDone);
+const d = await pg.evaluate(() => document.getElementById('c').toDataURL('image/png').split(',')[1]);
+fs.writeFileSync(path.join(ROOT, 'fomies_pow.png'), Buffer.from(d, 'base64'));
+await b.close(); srv.close(); console.log('ok');
